@@ -17,7 +17,6 @@ data InCtx : (Γ : Ctx) → Set where
   same : ∀{Γ T} → InCtx (Γ , T)
   next : ∀{Γ T} → InCtx Γ → InCtx (Γ , T)
 
-
 Tat : ∀{Γ} → InCtx Γ → Type
 Tat (same {Γ} {T}) = T
 Tat (next icx) = Tat icx
@@ -25,13 +24,6 @@ Tat (next icx) = Tat icx
 Γat : ∀{Γ} → InCtx Γ → Ctx
 Γat (same {Γ} {T}) = Γ
 Γat (next icx) = Γat icx
-
-data Exp : Ctx → Type → Set where
-  var : ∀{Γ} → (icx : InCtx Γ) → Exp Γ (Tat icx)
-  lambda : ∀{Γ A B} → Exp (Γ , A) B → Exp Γ (A ⇒ B)
-  app : ∀{Γ A B} → Exp Γ (A ⇒ B) → Exp Γ A → Exp Γ B
-  z : ∀{Γ} → Exp Γ Nat
-  s : ∀{Γ} → Exp Γ (Nat ⇒ Nat)
 
 subCtx : ∀{Γ} → (icx : InCtx Γ) → Ctx
 subCtx (same {Γ}) =  Γ
@@ -52,20 +44,6 @@ weakenICX (next pre) W same = same , refl
 weakenICX (next pre) W (next icx) with weakenICX pre W icx
 ...                               | (i , p) = (next i , p)
 
-weaken : ∀{Γ T} → (pre : Pre Γ) → (W : Type)
-  → Exp Γ T → Exp (weakenΓ pre W) T
-weaken pre W (var icx) with weakenICX pre W icx
-...                    | (i , p) = subst (λ T → Exp _ T) p (var i)
-weaken pre W (lambda e) = lambda (weaken (next pre) W e)
-weaken pre W (app e₁ e₂) = app (weaken pre W e₁) (weaken pre W e₂)
-weaken pre W z = z
-weaken pre W s = s
-
-weakenMany : ∀{Γ T} → (icx : InCtx Γ)
-  → Exp (Γat icx) T → Exp (subCtx icx) T
-weakenMany same e = e
-weakenMany (next {_} {T} icx) e = weaken same T (weakenMany icx e)
-
 -- -- left output means use toSub, right means just adjust x for new context.
 varSub : ∀{Γ} → (icx : InCtx Γ)
   → (x : InCtx Γ) → (Tat icx ≡ Tat x) ⊎ (Σ (InCtx (subCtx icx)) (λ i → Tat i ≡ Tat x))
@@ -75,17 +53,6 @@ varSub (next icx) same = inj₂ (same , refl)
 varSub (next icx) (next x) with varSub icx x
 ...                              | inj₁ p = inj₁ p
 ...                              | inj₂ (i , p) = inj₂ (next i , p)
-
--- This is not strictly speaking necessary to exist. Therefore, same for weaken and weakenMany.
-sub : ∀{Γ T} → (icx : InCtx Γ) → (toSub : Exp (Γat icx) (Tat icx))
-  → Exp Γ T →  Exp (subCtx icx) T
-sub icx toSub (var x) with varSub icx x
-...                   | inj₁ p = subst (λ T → Exp _ T) p (weakenMany icx toSub)
-...                   | inj₂ (i , p) = subst (λ T → Exp _ T) p (var i)
-sub icx toSub (app e₁ e₂) = app (sub icx toSub e₁) (sub icx toSub e₂)
-sub icx toSub (lambda e) = lambda (sub (next icx) toSub e)
-sub icx toSub z = z
-sub icx toSub s = s
 
 lToType : List Type → Type → Type
 lToType [] T = T
@@ -178,14 +145,6 @@ subv T icx toSub p (fromU (varapp Ts {out} x p₂ Vs))
   with varSub icx x
 ...  | inj₁ p₃ = appv T toSub Ts out (trans (trans p p₃) p₂) (subMap T icx toSub p Ts Vs)
 ...  | inj₂ (subx , p₃) = fromU (varapp Ts subx (trans p₃ p₂) (subMap T icx toSub p Ts Vs) )
-
-normalize : ∀{Γ T} → Exp Γ T → V Γ T
-normalize (var icx) = fromU (varapp [] icx refl tt )
-normalize (lambda e) = lambda (normalize e)
-normalize (app e e₁) = appv _ (normalize e) _ _ refl (normalize e₁ , tt )
-normalize z = fromU z
-normalize s = lambda (fromU (s (fromU (varapp [] same refl tt)))) -- a little janky, s ↦ λ x . s x
-
 
 id : V ∅ (Nat ⇒ Nat)
 id = lambda (fromU (varapp [] same refl tt ))
