@@ -145,49 +145,55 @@ lemma1' : ∀{Γ A B T₁ T₂} → (A ⇒ B ≡ T₁ ⇒ T₂) → V (Γ , A) B
 lemma1' refl e = e
 lemma2 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → A ≡ C
 lemma2 refl = refl
+lemma3 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → B ≡ D
+lemma3 refl = refl
+lemma4 : ∀(argsT) → ∀(out) → ∀{argsT' out'}
+  → lToType argsT out ≡ lToType argsT' out'
+  → (argsT ≡ argsT') × (out ≡ out')
+lemma4 [] out {[]} {out'} p = refl , p
+lemma4 [] out {x ∷ argsT'} {out'} p = {!   !}
+lemma4 (x ∷ argsT) out {argsT'} {out'} p = {!   !}
 
 -- TODO: was there supposed to be a separate Γ'
 subv : ∀{Γ} → (T : Type) → ∀{T'} → (icx : InCtx Γ)
-  → (toSub : V (Γat icx) T) → (T ≡ Tat icx) → V Γ T' → V (subCtx icx) T'
+  → (toSub : V (subCtx icx) T) → (T ≡ Tat icx) → V Γ T' → V (subCtx icx) T'
 
 -- TODO: make T : Type implicit in appv and subv
 appv : ∀{Γ} → (T : Type) → (e : V Γ T)
   → (l : List Type) → (out : Type) → (T ≡ lToType l out)
   → lToExps Γ l → V Γ out
 appv {Γ} .(_ ⇒ _) (lambda e) [] out p argsV = subst (λ T → V Γ T) p (lambda e)
-appv {Γ} .(_ ⇒ _) (lambda e) (x ∷ argsT) out p (v , argsV) -- = {!   !} -- in terms of appv argsT, recurse!
-  = let f = subv _ same (subst _ (lemma2 (sym p)) v) refl e -- TODO: make there not be sym
-    in appv _ f argsT out {!   !} argsV -- appv f argsT
-appv T (fromU x) argsT out p argsV = {!   !}
+appv {Γ} (A ⇒ B) (lambda e) (x ∷ argsT) out p (v , argsV) -- = {!   !} -- in terms of appv argsT, recurse!
+  = let f = subv A same (subst _ (lemma2 (sym p)) v) refl e -- TODO: make there not be sym
+    in appv B f argsT out (lemma3 p) argsV -- appv f argsT
+appv {Γ} .Nat (fromU z) argsT out p argsV = {! subst (λ T → V Γ T) p (fromU z)  !}
+appv .(Nat ⇒ Nat) (fromU (s x)) argsT out p argsV = {!   !}
+appv T (fromU (varapp Ts icx p₁ Vs)) argsT out p argsV
+  = fromU (varapp (Ts ++ argsT) icx {!   !} {!   !} )
 
 -- appv a b   calls subv toSub e with toSub = b, e < a
 -- subv toSub e     calls appv with e = incomparable but should be toSub, b < e
 
 subMap : ∀{Γ} → (T : Type)
-  → (icx : InCtx Γ) → (toSub : V (Γat icx) T) → (T ≡ Tat icx)
+  → (icx : InCtx Γ) → (toSub : V (subCtx icx) T) → (T ≡ Tat icx)
   → (Ts : List Type)
   → lToExps Γ Ts → lToExps (subCtx icx) Ts
 subMap T icx toSub p [] Vs = tt
 subMap _ icx toSub p (T ∷ Ts) (V , Vs)
   = subv _ icx toSub p V , subMap _ icx toSub p Ts Vs
 
-subv T icx toSub p (lambda v) = lambda (subv T (next icx) toSub p v)
+subv T icx toSub p (lambda v) = lambda (subv T (next icx) (weakenV same _ toSub) p v)
 subv T icx toSub p (fromU z) = fromU z
 subv T icx toSub p (fromU (s x)) = fromU (s (subv T icx toSub p x))
 subv T icx toSub p (fromU (varapp Ts {out} x p₂ Vs))
   with varSub icx x
-  -- TODO: is it possible to input toSub in ctx (subCtx icx) in the first place?
-  -- then in each recursion where toSub is passed, need to weaken.
-  -- but that way, termination checker should work I think.
-...  | inj₁ p₃ = appv _ (subst (λ T → V (subCtx icx) T) (trans p p₃) (weakenManyV icx toSub)) Ts out p₂ (subMap T icx toSub p Ts Vs)
+-- ...  | inj₁ p₃ = appv _ {!   !} Ts out p₂ (subMap T icx toSub p Ts Vs)
+-- ...  | inj₁ p₃ = appv _ (subst (λ T → V (subCtx icx) T) (trans p p₃) toSub) Ts out p₂ (subMap T icx toSub p Ts Vs)
+...  | inj₁ p₃ = appv T toSub Ts out (trans (trans p p₃) p₂) (subMap T icx toSub p Ts Vs)
 ...  | inj₂ (subx , p₃) = fromU (varapp Ts subx (trans p₃ p₂) (subMap T icx toSub p Ts Vs) )
-  -- = appv _ {!   !} Ts out p₂ (subMap T toSub icx p Ts Vs)
-  -- TODO: two cases, based on varSub.
-  -- If different variable, then don't call appv, just use varapp.
-  -- If same variable, then put toSub in hole there.
 
--- appv : ∀{Γ} → (T : Type) → (e : V Γ T)
---   → ((A B : Type) → (T ≡ A ⇒ B) → V Γ A → V Γ B)
--- appv .(Tat icx) (fromU (var icx)) A B p e₂ = {!   !}
--- appv .(_ ⇒ _) (lambda e₁) A B p e₂ = subv A e₂ same refl (lemma1' p e₁)
--- appv {Γ} T (fromU (app e₁ e₂)) A B p e₃ = fromU (app (subst (λ T → U Γ T) p (app e₁ e₂)) e₃)
+-- TODO: when replace above line with correct one, fails termination check.
+-- But, when subv calls appv, it is on same T, and when
+-- appv calls subv, it is with smaller T
+-- also appv calls appv, but on smaller T.
+-- also, subv calls subv on smaller v

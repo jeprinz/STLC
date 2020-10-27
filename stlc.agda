@@ -114,15 +114,28 @@ lemma1' refl e = e
 
 subv : ∀{Γ} → (T : Type) → (e : V Γ T)
   → (∀{Γ' T'} → (icx : InCtx Γ') → (T ≡ Tat icx) → V Γ' T' → V (subCtx icx) T')
-subv .(Tat icx₁) (fromU (var icx₁)) icx p subIn = {!   !}
-subv .(_ ⇒ _) (lambda e) icx p subIn = {!   !}
--- TODO: how is this / can this be decreasing on T?
-subv T (fromU (app e₁ e₂)) icx p subIn = {!   !} -- sub e₁ and e₂, then appv them?
-subv .Nat (fromU z) icx p subIn = {!   !}
-subv .(Nat ⇒ Nat) (fromU s) icx p subIn = {!   !}
--- ...         | test = ?
 appv : ∀{Γ} → (T : Type) → (e : V Γ T)
   → ((A B : Type) → (T ≡ A ⇒ B) → V Γ A → V Γ B)
+subu : ∀{Γ} → (T : Type) → (e : V Γ T)
+  → (∀{Γ' T'} → (icx : InCtx Γ') → (T ≡ Tat icx) → U Γ' T' → V (subCtx icx) T')
+
+subu T e icx p (var icx₁) = {!   !}
+subu T e icx p z = {!   !}
+subu T e icx p s = {!   !}
+subu T e icx p (app u v)
+  = let u' = subu T e icx p u
+        v' = subv T e icx p v
+    in appv _ u' _ _ refl v'
+
+subv T e icx p (lambda v) = lambda (subv T e (next icx) p v)
+subv T e icx p (fromU u) = subu T e icx p u
+-- subv .(Tat icx₁) (fromU (var icx₁)) icx p subIn = {!   !}
+-- subv .(_ ⇒ _) (lambda e) icx p subIn = {!   !}
+-- -- TODO: how is this / can this be decreasing on T?
+-- subv T (fromU (app e₁ e₂)) icx p subIn = {!   !} -- sub e₁ and e₂, then appv them?
+-- subv .Nat (fromU z) icx p subIn = {!   !}
+-- subv .(Nat ⇒ Nat) (fromU s) icx p subIn = {!   !}
+-- ...         | test = ?
 appv .(Tat icx) (fromU (var icx)) A B p e₂ = {!   !}
 appv .(_ ⇒ _) (lambda e₁) A B p e₂ = subv A e₂ same refl (lemma1' p e₁)
 appv {Γ} T (fromU (app e₁ e₂)) A B p e₃ = fromU (app (subst (λ T → U Γ T) p (app e₁ e₂)) e₃)
