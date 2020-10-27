@@ -103,7 +103,7 @@ lToExps Γ (T ∷ l) = (V Γ T) × (lToExps Γ l)
 
 data U : Ctx → Type → Set where
   z : ∀{Γ} → U Γ Nat
-  s : ∀{Γ} → V Γ Nat → U Γ (Nat ⇒ Nat)
+  s : ∀{Γ} → V Γ Nat → U Γ Nat
   -- varapp : ∀{Γ} → (l : List (Σ Type (λ T → V Γ T))) -- not possible to make types implicit?
   --   → {Out : Type}
   --   → U Γ (lToType (map proj₁ l) Out)
@@ -157,6 +157,12 @@ lemma3 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → B ≡ D
 lemma3 refl = refl
 lemma4 : ∀{argsT out} → Nat ≡ lToType argsT out → Nat ≡ out
 lemma4 {[]} {out} p = p
+lemma5 : ∀{Ts1 Ts2 out} → lToType Ts1 (lToType Ts2 out) ≡ lToType (Ts1 ++ Ts2) out
+lemma5 {[]} {Ts2} = refl
+lemma5 {T ∷ Ts1} {Ts2} {out} = cong (λ B → T ⇒ B) (lemma5 {Ts1} {Ts2} {out})
+lemma6 : ∀{Γ} →  (Ts1 Ts2 : List Type) → lToExps Γ Ts1 → lToExps Γ Ts2 → lToExps Γ (Ts1 ++ Ts2)
+lemma6 [] Ts2 Vs1 Vs2 = Vs2
+lemma6 (T ∷ Ts1) Ts2 (V , Vs1) Vs2 = V , lemma6 Ts1 Ts2 Vs1 Vs2
 
 -- TODO: why not just replace T with Tat icx and remove the equality? probably it would break prim recursion?
 subv : ∀{Γ} → (T : Type) → ∀{T'} → (icx : InCtx Γ)
@@ -171,9 +177,11 @@ appv {Γ} (A ⇒ B) (lambda e) (x ∷ argsT) out p (v , argsV) -- = {!   !} -- i
   = let f = subv A same (subst _ (lemma2 (sym p)) v) refl e -- TODO: make there not be sym
     in appv B f argsT out (lemma3 p) argsV -- appv f argsT
 appv {Γ} .Nat (fromU z) argsT out p argsV = subst (λ T → V Γ T) (lemma4 p) (fromU z)
-appv .(Nat ⇒ Nat) (fromU (s x)) argsT out p argsV = {! fromU (s x)  !}
+appv {Γ} .Nat (fromU (s x)) argsT out p argsV = subst (λ T → V Γ T) (lemma4 p) (fromU (s x))
 appv T (fromU (varapp Ts icx p₁ Vs)) argsT out p argsV
-  = fromU (varapp (Ts ++ argsT) icx {! subst (λ T → Tat icx ≡ lToType Ts T) p p₁  !} {!   !} )
+  = fromU (varapp (Ts ++ argsT) icx
+    (subst (λ T → Tat icx ≡ T) (lemma5 {Ts} {argsT} {out}) (subst (λ T → Tat icx ≡ lToType Ts T) p p₁))
+    (lemma6 _ _ Vs argsV) )
 
 -- appv a b   calls subv toSub e with toSub = b, e < a
 -- subv toSub e     calls appv with e = incomparable but should be toSub, b < e
