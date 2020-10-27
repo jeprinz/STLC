@@ -125,10 +125,18 @@ data V where
 
 weakenV : ∀{Γ T} → (pre : Pre Γ) → (W : Type)
   → V Γ T → V (weakenΓ pre W) T
+
+weakenVs : ∀{Γ} → (pre : Pre Γ) → (W : Type)
+  → (Ts : List Type)
+  → lToExps Γ Ts → lToExps (weakenΓ pre W) Ts
+weakenVs pre W [] Vs = tt
+weakenVs pre W (T ∷ Ts) (V , Vs) = weakenV pre W V , weakenVs pre W Ts Vs
+
 weakenV pre W (lambda v) = lambda (weakenV (next pre) W v)
 weakenV pre W (fromU z) = fromU z
 weakenV pre W (fromU (s x)) = fromU (s (weakenV pre W x))
-weakenV pre W (fromU (varapp l icx x x₁)) = {!   !}
+weakenV pre W (fromU (varapp Ts icx p Vs)) with weakenICX pre W icx
+... | (i , p₁) = fromU (varapp Ts i (trans p₁ p) (weakenVs pre W Ts Vs) )
 -- weakenV pre W (var icx) with weakenICX pre W icx
 -- ...                    | (i , p) = subst (λ T → V _ T) p (var i)
 -- weakenV pre W (lambda e) = lambda (weakenV (next pre) W e)
@@ -147,14 +155,10 @@ lemma2 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → A ≡ C
 lemma2 refl = refl
 lemma3 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → B ≡ D
 lemma3 refl = refl
-lemma4 : ∀(argsT) → ∀(out) → ∀{argsT' out'}
-  → lToType argsT out ≡ lToType argsT' out'
-  → (argsT ≡ argsT') × (out ≡ out')
-lemma4 [] out {[]} {out'} p = refl , p
-lemma4 [] out {x ∷ argsT'} {out'} p = {!   !}
-lemma4 (x ∷ argsT) out {argsT'} {out'} p = {!   !}
+lemma4 : ∀{argsT out} → Nat ≡ lToType argsT out → Nat ≡ out
+lemma4 {[]} {out} p = p
 
--- TODO: was there supposed to be a separate Γ'
+-- TODO: why not just replace T with Tat icx and remove the equality? probably it would break prim recursion?
 subv : ∀{Γ} → (T : Type) → ∀{T'} → (icx : InCtx Γ)
   → (toSub : V (subCtx icx) T) → (T ≡ Tat icx) → V Γ T' → V (subCtx icx) T'
 
@@ -166,10 +170,10 @@ appv {Γ} .(_ ⇒ _) (lambda e) [] out p argsV = subst (λ T → V Γ T) p (lamb
 appv {Γ} (A ⇒ B) (lambda e) (x ∷ argsT) out p (v , argsV) -- = {!   !} -- in terms of appv argsT, recurse!
   = let f = subv A same (subst _ (lemma2 (sym p)) v) refl e -- TODO: make there not be sym
     in appv B f argsT out (lemma3 p) argsV -- appv f argsT
-appv {Γ} .Nat (fromU z) argsT out p argsV = {! subst (λ T → V Γ T) p (fromU z)  !}
-appv .(Nat ⇒ Nat) (fromU (s x)) argsT out p argsV = {!   !}
+appv {Γ} .Nat (fromU z) argsT out p argsV = subst (λ T → V Γ T) (lemma4 p) (fromU z)
+appv .(Nat ⇒ Nat) (fromU (s x)) argsT out p argsV = {! fromU (s x)  !}
 appv T (fromU (varapp Ts icx p₁ Vs)) argsT out p argsV
-  = fromU (varapp (Ts ++ argsT) icx {!   !} {!   !} )
+  = fromU (varapp (Ts ++ argsT) icx {! subst (λ T → Tat icx ≡ lToType Ts T) p p₁  !} {!   !} )
 
 -- appv a b   calls subv toSub e with toSub = b, e < a
 -- subv toSub e     calls appv with e = incomparable but should be toSub, b < e
