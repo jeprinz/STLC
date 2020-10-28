@@ -93,11 +93,6 @@ weakenV pre W (fromU (s x)) = fromU (s (weakenV pre W x))
 weakenV pre W (fromU (varapp Ts icx p Vs)) with weakenICX pre W icx
 ... | (i , p₁) = fromU (varapp Ts i (trans p₁ p) (weakenVs pre W Ts Vs) )
 
-weakenManyV : ∀{Γ T} → (icx : InCtx Γ)
-  → V (Γat icx) T → V (subCtx icx) T
-weakenManyV same e = e
-weakenManyV (next {_} {T} icx) e = weakenV same T (weakenManyV icx e)
-
 lemma2 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → A ≡ C
 lemma2 refl = refl
 lemma3 : ∀{A B C D} → (A ⇒ B ≡ C ⇒ D) → B ≡ D
